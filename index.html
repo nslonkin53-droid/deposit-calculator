@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Калькулятор депозита</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <main class="app">
+    <section class="hero">
+      <div class="badge">Дом Трейдеров</div>
+      <h1>Калькулятор депозита</h1>
+      <p>Введи депозит, процент выплаты и количество шагов. Таблица рассчитает входы автоматически.</p>
+    </section>
+
+    <section class="card inputs">
+      <label>
+        <span>Депозит</span>
+        <input id="deposit" type="number" min="1" step="1" value="100" />
+      </label>
+
+      <label>
+        <span>Процент выплаты, %</span>
+        <input id="payout" type="number" min="1" max="1000" step="1" value="85" />
+      </label>
+
+      <label>
+        <span>Количество шагов</span>
+        <input id="steps" type="number" min="1" max="30" step="1" value="5" />
+      </label>
+
+      <label>
+        <span>Использовать от депозита, %</span>
+        <input id="riskPart" type="number" min="1" max="100" step="1" value="100" />
+      </label>
+
+      <label>
+        <span>Режим</span>
+        <select id="mode">
+          <option value="equal">Ровно по шагам</option>
+          <option value="martingale">С перекрытием убытка</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="card result-card">
+      <div class="summary">
+        <div>
+          <span>Распределяем</span>
+          <strong id="usedDeposit">0</strong>
+        </div>
+        <div>
+          <span>Общий вход</span>
+          <strong id="totalStake">0</strong>
+        </div>
+        <div>
+          <span>Остаток</span>
+          <strong id="leftover">0</strong>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Шаг</th>
+              <th>Вход</th>
+              <th>Выплата</th>
+              <th>Итог при плюсе</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <button id="sendBtn" type="button">Отправить расчёт боту</button>
+    </section>
+
+    <p class="note">Это калькулятор распределения депозита, а не финансовая рекомендация.</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
