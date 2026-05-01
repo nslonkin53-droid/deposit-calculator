@@ -1,8 +1,5 @@
-const tg = window.Telegram?.WebApp;
-if (tg) {
-  tg.ready();
-  tg.expand();
-}
+const tg = window.Telegram.WebApp;
+tg.expand();
 
 const els = {
   deposit: document.getElementById('deposit'),
@@ -10,122 +7,84 @@ const els = {
   steps: document.getElementById('steps'),
   riskPart: document.getElementById('riskPart'),
   mode: document.getElementById('mode'),
-  rows: document.getElementById('rows'),
   usedDeposit: document.getElementById('usedDeposit'),
   totalStake: document.getElementById('totalStake'),
   leftover: document.getElementById('leftover'),
-  sendBtn: document.getElementById('sendBtn'),
+  rows: document.getElementById('rows'),
+  sendBtn: document.getElementById('sendBtn')
 };
 
-function money(value) {
-  return Number(value || 0).toLocaleString('ru-RU', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function getNumber(input, fallback) {
-  const value = Number(String(input.value).replace(',', '.'));
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
+// Форматтер для красивого вывода рублей
+const rub = new Intl.NumberFormat('ru-RU', {
+  style: 'currency',
+  currency: 'RUB',
+  minimumFractionDigits: 2
+});
 
 function calculate() {
-  const deposit = getNumber(els.deposit, 100);
-  const payoutPercent = getNumber(els.payout, 85);
-  const payout = payoutPercent / 100;
-  const steps = Math.max(1, Math.min(30, Math.floor(getNumber(els.steps, 5))));
-  const riskPart = Math.max(1, Math.min(100, getNumber(els.riskPart, 100))) / 100;
-  const usedDeposit = deposit * riskPart;
+  const deposit = parseFloat(els.deposit.value) || 0;
+  const payoutPercent = parseFloat(els.payout.value) || 0;
+  const steps = parseInt(els.steps.value) || 0;
+  const riskPart = parseFloat(els.riskPart.value) || 0;
   const mode = els.mode.value;
+
+  if (deposit <= 0 || payoutPercent <= 0 || steps <= 0) return;
+
+  const payoutCoeff = payoutPercent / 100;
+  const usedDeposit = deposit * (riskPart / 100);
 
   let stakes = [];
 
   if (mode === 'equal') {
-    const stake = usedDeposit / steps;
-    stakes = Array.from({ length: steps }, () => stake);
+    const s = usedDeposit / steps;
+    for (let i = 0; i < steps; i++) stakes.push(s);
   } else {
-    // Схема перекрытия: каждый следующий вход пытается закрыть прошлые минусы и дать прибыль как на первом входе.
-    const targetProfit = usedDeposit * 0.03; // базовая цель 3% от распределяемой суммы
-    let previousLoss = 0;
-    for (let i = 0; i < steps; i++) {
-      const stake = (previousLoss + targetProfit) / payout;
-      stakes.push(stake);
-      previousLoss += stake;
-    }
+    // МАТЕМАТИЧЕСКИЙ РАСЧЕТ ДОГОНА
+    // Коэффициент (q) должен быть больше чем (1 + 1/payout)
+    // Добавляем 0.1 сверху для гарантированного профита
+    const q = (1 / payoutCoeff) + 1.1;
 
-    const total = stakes.reduce((a, b) => a + b, 0);
-    if (total > usedDeposit) {
-      const ratio = usedDeposit / total;
-      stakes = stakes.map(v => v * ratio);
+    // s1 = Сумма * (q - 1) / (q^n - 1)
+    let s1 = usedDeposit * (q - 1) / (Math.pow(q, steps) - 1);
+
+    for (let i = 0; i < steps; i++) {
+      stakes.push(s1 * Math.pow(q, i));
     }
   }
 
-  let totalStake = 0;
-  const rows = stakes.map((stake, index) => {
-    totalStake += stake;
-    const grossPayout = stake * payout;
-    const netIfWin = grossPayout - totalStake;
+  renderTable(stakes, payoutCoeff, usedDeposit, deposit);
+}
 
-    return {
-      step: index + 1,
-      stake,
-      grossPayout,
-      netIfWin,
-      totalBefore: totalStake,
-    };
+function renderTable(stakes, payoutCoeff, usedDeposit, deposit) {
+  els.rows.innerHTML = '';
+  let totalSpent = 0;
+
+  stakes.forEach((stake, index) => {
+    totalSpent += stake;
+    const potentialProfit = stake * payoutCoeff;
+    // Чистая прибыль = Выплата текущего шага - Сумма всех прошлых убытков
+    const netProfit = potentialProfit - (totalSpent - stake);
+
+    const tr = document.createElement('tr');
+    const isWin = netProfit > 0;
+    const resultStyle = isWin ? 'color: #22c55e; font-weight: bold;' : 'color: #ef4444;';
+
+    tr.innerHTML = `
+            <td>Шаг ${index + 1}</td>
+            <td>${rub.format(stake)}</td>
+            <td>${rub.format(stake + potentialProfit)}</td>
+            <td style="${resultStyle}">${isWin ? '+' : ''}${rub.format(netProfit)}</td>
+        `;
+    els.rows.appendChild(tr);
   });
 
-  render(rows, usedDeposit, totalStake, deposit - totalStake);
-  return { deposit, payoutPercent, steps, riskPart: riskPart * 100, mode, rows, usedDeposit, totalStake };
+  els.usedDeposit.innerText = rub.format(totalSpent);
+  els.totalStake.innerText = rub.format(totalSpent);
+  els.leftover.innerText = rub.format(deposit - totalSpent);
 }
 
-function render(rows, usedDeposit, totalStake, leftover) {
-  els.usedDeposit.textContent = money(usedDeposit);
-  els.totalStake.textContent = money(totalStake);
-  els.leftover.textContent = money(leftover);
-
-  els.rows.innerHTML = rows.map(row => `
-    <tr>
-      <td>Шаг ${row.step}</td>
-      <td>${money(row.stake)}</td>
-      <td>${money(row.grossPayout)}</td>
-      <td class="${row.netIfWin >= 0 ? 'plus' : 'minus'}">${money(row.netIfWin)}</td>
-    </tr>
-  `).join('');
-}
-
-function buildText(data) {
-  const modeName = data.mode === 'equal' ? 'Ровно по шагам' : 'С перекрытием убытка';
-  const lines = [
-    '📊 Расчёт депозита',
-    `Депозит: ${money(data.deposit)}`,
-    `Выплата: ${data.payoutPercent}%`,
-    `Шагов: ${data.steps}`,
-    `Режим: ${modeName}`,
-    '',
-    ...data.rows.map(r => `Шаг ${r.step}: вход ${money(r.stake)} | выплата ${money(r.grossPayout)} | итог ${money(r.netIfWin)}`),
-  ];
-  return lines.join('\n');
-}
-
-Object.values(els).forEach(el => {
-  if (el && ['INPUT', 'SELECT'].includes(el.tagName)) {
-    el.addEventListener('input', calculate);
-    el.addEventListener('change', calculate);
-  }
-});
-
-els.sendBtn.addEventListener('click', () => {
-  const data = calculate();
-  const text = buildText(data);
-
-  if (tg) {
-    tg.sendData(JSON.stringify({ type: 'deposit_calculation', text, data }));
-    tg.close();
-  } else {
-    navigator.clipboard?.writeText(text);
-    alert('Расчёт скопирован. В Telegram он будет отправляться боту автоматически.');
-  }
+[els.deposit, els.payout, els.steps, els.riskPart, els.mode].forEach(input => {
+  input.addEventListener('input', calculate);
 });
 
 calculate();
