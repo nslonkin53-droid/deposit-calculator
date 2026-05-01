@@ -49,5 +49,35 @@ function calculate() {
     }
   }
 
-  renderTable(stakes, payoutCoeff, firstStake, deposit);
+  function renderTable(stakes, payoutCoeff, firstStake, deposit) {
+    els.rows.innerHTML = '';
+    let totalSpent = 0;
+
+    stakes.forEach((stake, index) => {
+      totalSpent += stake;
+      const potentialProfit = stake * payoutCoeff;
+      const netProfit = potentialProfit - (totalSpent - stake);
+
+      const tr = document.createElement('tr');
+      const isWin = netProfit > 0;
+      const resultStyle = isWin ? 'color: #22c55e; font-weight: bold;' : 'color: #ef4444;';
+
+      tr.innerHTML = `
+            <td>Шаг ${index + 1}</td>
+            <td>${rub.format(stake)}</td>
+            <td>${rub.format(stake + potentialProfit)}</td>
+            <td style="${resultStyle}">${isWin ? '+' : ''}${rub.format(netProfit)}</td>
+        `;
+      els.rows.appendChild(tr);
+    });
+
+    // Исправленные подписи для карточек
+    document.querySelector('.card:nth-child(1) p').innerText = 'Первый вход';
+    els.usedDeposit.innerText = rub.format(stakes[0]); // Показываем 100 руб
+
+    document.querySelector('.card:nth-child(2) p').innerText = 'Всего на серию';
+    els.totalStake.innerText = rub.format(totalSpent); // Сумма всех 5 шагов
+
+    els.leftover.innerText = rub.format(deposit - totalSpent);
+  };
 }
