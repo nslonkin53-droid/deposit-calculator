@@ -10,11 +10,9 @@ const els = {
   usedDeposit: document.getElementById('usedDeposit'),
   totalStake: document.getElementById('totalStake'),
   leftover: document.getElementById('leftover'),
-  rows: document.getElementById('rows'),
-  sendBtn: document.getElementById('sendBtn')
+  rows: document.getElementById('rows')
 };
 
-// Форматтер для красивого вывода рублей
 const rub = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
   currency: 'RUB',
@@ -32,22 +30,53 @@ function calculate() {
 
   const payoutCoeff = payoutPercent / 100;
 
-  // ВЫЧИСЛЯЕМ ПЕРВЫЙ ШАГ: 1% от депозита (100 рублей)
+  // ВЫЧИСЛЯЕМ ПЕРВЫЙ ШАГ: берем % от депозита (например, 1% от 10000 = 100 руб)
   const firstStake = deposit * (riskPercent / 100);
 
   let stakes = [];
 
   if (mode === 'equal') {
-    // Все шаги по 100 рублей
     for (let i = 0; i < steps; i++) stakes.push(firstStake);
   } else {
-    // УМНЫЙ ДОГОН: первый шаг 100, следующие выше для перекрытия
+    // Коэффициент для догона, чтобы всегда быть в плюсе
     const q = (1 / payoutCoeff) + 1.1;
-
     for (let i = 0; i < steps; i++) {
       stakes.push(firstStake * Math.pow(q, i));
     }
   }
 
-  renderTable(stakes, payoutCoeff, firstStake, deposit);
+  renderTable(stakes, payoutCoeff, deposit);
 }
+
+function renderTable(stakes, payoutCoeff, deposit) {
+  els.rows.innerHTML = '';
+  let totalSpent = 0;
+
+  stakes.forEach((stake, index) => {
+    totalSpent += stake;
+    const potentialProfit = stake * payoutCoeff;
+    const netProfit = potentialProfit - (totalSpent - stake);
+
+    const tr = document.createElement('tr');
+    const isWin = netProfit > 0;
+    const resultStyle = isWin ? 'color: #22c55e; font-weight: bold;' : 'color: #ef4444;';
+
+    tr.innerHTML = `
+            <td>Шаг ${index + 1}</td>
+            <td>${rub.format(stake)}</td>
+            <td>${rub.format(stake + potentialProfit)}</td>
+            <td style="${resultStyle}">${isWin ? '+' : ''}${rub.format(netProfit)}</td>
+        `;
+    els.rows.appendChild(tr);
+  });
+
+  els.usedDeposit.innerText = rub.format(stakes[0]); // Показываем 100 руб (первый шаг)
+  els.totalStake.innerText = rub.format(totalSpent); // Показываем сумму всей серии
+  els.leftover.innerText = rub.format(deposit - totalSpent);
+}
+
+[els.deposit, els.payout, els.steps, els.riskPart, els.mode].forEach(input => {
+  input.addEventListener('input', calculate);
+});
+
+calculate();
